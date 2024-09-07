@@ -1,0 +1,85 @@
+body{
+  background-repeat: no-repeat;
+  background-size: cover  ;
+
+}
+.container {
+  display: flex;
+  flex-direction: row;
+  
+}
+
+.sidebar {
+  
+  background-color: #f0f0f0;
+  padding: 20px;
+  border-right: 1px solid #ccc;
+  width: 40px;
+  transition:ease-out 0.5s;
+}
+
+.sidebar ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.sidebar li {
+  margin-bottom: 10px;
+}
+
+.sidebar a {
+  text-decoration: none;
+  color: #337ab7;
+}
+
+.sidebar a:hover {
+  color: #23527c;
+}
+
+.sidebar :hover{
+
+  width: 80px;
+}
+
+.login-form {
+  width: 25%;
+  padding: 20px;
+  margin-top: 10%;
+  margin-left: 30%;
+ border: solid rgb(122, 121, 121) 1px;
+ border-radius: 20px;
+ box-shadow: black ;
+  
+}
+
+.login-form h2 {
+  margin-top: 0;
+}
+
+.login-form label {
+  display: block;
+  margin-bottom: 10px;
+
+}
+
+.login-form input[type="text"], .login-form input[type="password"] {
+  width: 90%;
+  padding: 10px;
+  margin-bottom: 20px;
+  border: 1px solid #ccc;
+  
+}
+
+.login-form input[type="submit"] {
+  background-color: #337ab7;
+  color: #fff;
+  padding: 10px 20px;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.login-form input[type="submit"]:hover {
+  background-color: #23527c;
+}
