@@ -10,7 +10,7 @@ const app = express();
 const port = process.env.PORT || 3000;
 
 // MongoDB connection
-mongoose.connect('mongodb://127.0.0.1:27017/fileUpload', {
+mongoose.connect('mongodb://localhost:27017', {
   useNewUrlParser: true,
   useUnifiedTopology: true,
 });
