@@ -18,9 +18,9 @@ router.get('/users', auth, async (req, res) => {
       params.push(`%${search}%`, `%${search}%`, `%${search}%`);
     }
 
+    // Use string interpolation for LIMIT/OFFSET since mysql2 has issues with these
     const offset = (parseInt(page) - 1) * parseInt(limit);
-    query += ' ORDER BY is_online DESC, first_name ASC LIMIT ? OFFSET ?';
-    params.push(parseInt(limit), offset);
+    query += ` ORDER BY is_online DESC, first_name ASC LIMIT ${parseInt(limit)} OFFSET ${offset}`;
 
     const [users] = await pool.execute(query, params);
     res.json(users);
@@ -81,9 +81,9 @@ router.put('/request/:connectionId', auth, async (req, res) => {
 router.get('/my', auth, async (req, res) => {
   try {
     const [connections] = await pool.execute(
-      `SELECT c.*, 
-              u1.first_name as req_first, u1.last_name as req_last, u1.avatar_url as req_avatar, u1.role as req_role, u1.department as req_dept, u1.is_online as req_online,
-              u2.first_name as rec_first, u2.last_name as rec_last, u2.avatar_url as rec_avatar, u2.role as rec_role, u2.department as rec_dept, u2.is_online as rec_online
+      `SELECT c.*,
+              u1.first_name as req_first, u1.last_name as req_last, u1.avatar_url as req_avatar, u1.role as req_role, u1.department as req_dept, u1.is_online as req_online, u1.bio as req_bio, u1.linkedin_url as req_linkedin,
+              u2.first_name as rec_first, u2.last_name as rec_last, u2.avatar_url as rec_avatar, u2.role as rec_role, u2.department as rec_dept, u2.is_online as rec_online, u2.bio as rec_bio, u2.linkedin_url as rec_linkedin
        FROM connections c
        JOIN users u1 ON c.requester_id = u1.id
        JOIN users u2 ON c.receiver_id = u2.id
@@ -108,6 +108,46 @@ router.get('/pending', auth, async (req, res) => {
       [req.user.id]
     );
     res.json(requests);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Get sent requests (pending requests I sent)
+router.get('/sent', auth, async (req, res) => {
+  try {
+    const [requests] = await pool.execute(
+      `SELECT c.*, u.first_name, u.last_name, u.avatar_url, u.role, u.department, u.is_online
+       FROM connections c
+       JOIN users u ON c.receiver_id = u.id
+       WHERE c.requester_id = ? AND c.status = 'pending'`,
+      [req.user.id]
+    );
+    res.json(requests);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Delete connection
+router.delete('/:connectionId', auth, async (req, res) => {
+  try {
+    const { connectionId } = req.params;
+
+    // Check if this connection belongs to the user
+    const [connection] = await pool.execute(
+      'SELECT * FROM connections WHERE id = ? AND (requester_id = ? OR receiver_id = ?)',
+      [connectionId, req.user.id, req.user.id]
+    );
+
+    if (connection.length === 0) {
+      return res.status(404).json({ message: 'Connection not found' });
+    }
+
+    await pool.execute('DELETE FROM connections WHERE id = ?', [connectionId]);
+    res.json({ message: 'Connection removed successfully' });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: 'Server error' });

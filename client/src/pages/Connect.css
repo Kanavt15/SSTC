@@ -15,7 +15,61 @@
   color: var(--on-surface-variant);
 }
 
-/* Tabs */
+/* Main Tabs */
+.connect-main-tabs {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+  padding: 0.5rem;
+  background: var(--surface-container-lowest);
+  border-radius: var(--radius-xl);
+  width: fit-content;
+}
+
+.main-tab {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.25rem;
+  border-radius: var(--radius-lg);
+  font-weight: 500;
+  font-size: 0.9rem;
+  color: var(--on-surface-variant);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.main-tab:hover {
+  background: var(--surface-container-low);
+}
+
+.main-tab.active {
+  background: white;
+  color: var(--on-surface);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+
+.tab-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 0.4rem;
+  border-radius: 10px;
+  background: var(--primary);
+  color: white;
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+.tab-badge.pending {
+  background: #f59e0b;
+}
+
+/* Role Filter Tabs */
 .connect-tabs {
   display: flex;
   gap: 0.5rem;
@@ -116,11 +170,105 @@
   display: flex;
   gap: 0.5rem;
   justify-content: center;
+  flex-wrap: wrap;
+}
+
+/* Pending Card Styles */
+.pending-card {
+  border: 2px solid #fef3c7;
+  background: linear-gradient(180deg, #fffbeb 0%, white 100%);
+}
+
+.pending-text {
+  color: #92400e;
+  font-style: italic;
+  margin-bottom: 1rem;
+}
+
+.pending-actions {
+  gap: 0.75rem;
+}
+
+/* Button Variants */
+.btn-success {
+  background: #22c55e;
+  color: white;
+}
+
+.btn-success:hover {
+  background: #16a34a;
+}
+
+.btn-success:disabled {
+  background: #86efac;
+  cursor: default;
+}
+
+.btn-secondary {
+  background: var(--surface-container);
+  color: var(--on-surface);
+}
+
+.btn-secondary:hover {
+  background: var(--surface-container-high);
+}
+
+.btn-danger {
+  background: #dc2626;
+  color: white;
+}
+
+.btn-danger:hover {
+  background: #b91c1c;
+}
+
+/* Empty State */
+.connect-empty {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 4rem 2rem;
+  color: var(--outline);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+
+.connect-empty h3 {
+  margin: 0;
+  color: var(--on-surface-variant);
+}
+
+.connect-empty p {
+  margin: 0;
+  max-width: 300px;
+}
+
+/* Online Badge */
+.avatar.online-badge {
+  position: relative;
+}
+
+.avatar.online-badge::after {
+  content: '';
+  position: absolute;
+  bottom: 2px;
+  right: 2px;
+  width: 12px;
+  height: 12px;
+  background: #22c55e;
+  border: 2px solid white;
+  border-radius: 50%;
 }
 
 @media (max-width: 1024px) {
   .connect-grid {
     grid-template-columns: repeat(2, 1fr);
+  }
+
+  .connect-main-tabs {
+    width: 100%;
+    overflow-x: auto;
   }
 }
 
@@ -136,5 +284,15 @@
   .connect-filters .select-field {
     max-width: 100%;
     width: 100%;
+  }
+
+  .connect-main-tabs {
+    flex-wrap: wrap;
+  }
+
+  .main-tab {
+    flex: 1;
+    min-width: fit-content;
+    justify-content: center;
   }
 }

@@ -74,10 +74,9 @@ router.get('/', async (req, res) => {
     const [countResult] = await pool.execute(countQuery, params);
     const total = countResult[0].total;
 
-    // Add pagination
+    // Add pagination - use string interpolation for LIMIT/OFFSET since mysql2 has issues with these
     const offset = (parseInt(page) - 1) * parseInt(limit);
-    query += ' ORDER BY n.created_at DESC LIMIT ? OFFSET ?';
-    params.push(parseInt(limit), offset);
+    query += ` ORDER BY n.created_at DESC LIMIT ${parseInt(limit)} OFFSET ${offset}`;
 
     const [notes] = await pool.execute(query, params);
 

@@ -77,6 +77,7 @@ router.get('/:channel', auth, async (req, res) => {
     const { channel } = req.params;
     const { page = 1, limit = 50 } = req.query;
     const offset = (parseInt(page) - 1) * parseInt(limit);
+    const limitNum = parseInt(limit);
 
     // Validate channel
     if (!VALID_CHANNELS.includes(channel)) {
@@ -97,8 +98,8 @@ router.get('/:channel', auth, async (req, res) => {
        JOIN users u ON cm.user_id = u.id
        WHERE cm.channel = ?
        ORDER BY cm.created_at DESC
-       LIMIT ? OFFSET ?`,
-      [channel, parseInt(limit), offset]
+       LIMIT ${limitNum} OFFSET ${offset}`,
+      [channel]
     );
 
     res.json(messages.reverse());
