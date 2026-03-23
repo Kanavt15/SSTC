@@ -11,6 +11,8 @@ const notesRoutes = require('./routes/notes');
 const chatRoutes = require('./routes/chat');
 const connectRoutes = require('./routes/connect');
 const chatbotRoutes = require('./routes/chatbot');
+const dashboardRoutes = require('./routes/dashboard');
+const messagesRoutes = require('./routes/messages');
 
 const app = express();
 const server = http.createServer(app);
@@ -33,6 +35,8 @@ app.use('/api/notes', notesRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/connect', connectRoutes);
 app.use('/api/chatbot', chatbotRoutes);
+app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/messages', messagesRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

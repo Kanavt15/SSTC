@@ -1,7 +1,7 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
-import { FiSearch, FiUserPlus, FiCheck, FiX, FiExternalLink, FiUsers, FiUserCheck, FiClock, FiMessageCircle, FiUserX } from 'react-icons/fi';
+import { FiSearch, FiUserPlus, FiCheck, FiX, FiExternalLink, FiUsers, FiUserCheck, FiClock, FiMessageCircle, FiUserX, FiSend, FiArrowLeft } from 'react-icons/fi';
 import './Connect.css';
 
 const API = 'http://localhost:5000/api';
@@ -15,6 +15,18 @@ const Connect = () => {
   const [filters, setFilters] = useState({ role: '', department: '', search: '' });
   const [activeTab, setActiveTab] = useState('discover');
   const [loading, setLoading] = useState(true);
+
+  // Chat state
+  const [chatOpen, setChatOpen] = useState(false);
+  const [chatUser, setChatUser] = useState(null);
+  const [messages, setMessages] = useState([]);
+  const [newMessage, setNewMessage] = useState('');
+  const [loadingMessages, setLoadingMessages] = useState(false);
+  const [sendingMessage, setSendingMessage] = useState(false);
+  const messagesEndRef = useRef(null);
+
+  // Accepted request animation state
+  const [acceptedRequests, setAcceptedRequests] = useState(new Set());
 
   // Fetch all connection-related data on mount
   const fetchAllConnectionData = useCallback(async () => {
@@ -44,6 +56,11 @@ const Connect = () => {
       fetchUsers();
     }
   }, [filters, activeTab, token]);
+
+  // Scroll to bottom when messages change
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
 
   const fetchUsers = async () => {
     if (!token) return;
@@ -77,13 +94,29 @@ const Connect = () => {
     }
   };
 
-  const respondToRequest = async (connectionId, status) => {
+  const respondToRequest = async (connectionId, status, requesterId) => {
     try {
       await axios.put(`${API}/connect/request/${connectionId}`, { status }, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      // Refresh all connection data
-      await fetchAllConnectionData();
+
+      if (status === 'accepted') {
+        // Show accepted animation
+        setAcceptedRequests(prev => new Set([...prev, connectionId]));
+
+        // After animation, refresh all data
+        setTimeout(async () => {
+          await fetchAllConnectionData();
+          setAcceptedRequests(prev => {
+            const newSet = new Set(prev);
+            newSet.delete(connectionId);
+            return newSet;
+          });
+        }, 1500);
+      } else {
+        // Just refresh pending requests
+        await fetchAllConnectionData();
+      }
     } catch (err) {
       alert(err.response?.data?.message || 'Failed to respond');
     }
@@ -105,18 +138,81 @@ const Connect = () => {
     }
   };
 
+  // Chat functions
+  const openChat = async (targetUser) => {
+    setChatUser(targetUser);
+    setChatOpen(true);
+    setLoadingMessages(true);
+    setMessages([]);
+
+    try {
+      const res = await axios.get(`${API}/messages/${targetUser.id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setMessages(res.data.messages);
+    } catch (err) {
+      console.error('Failed to load messages:', err);
+    } finally {
+      setLoadingMessages(false);
+    }
+  };
+
+  const closeChat = () => {
+    setChatOpen(false);
+    setChatUser(null);
+    setMessages([]);
+    setNewMessage('');
+  };
+
+  const sendMessage = async (e) => {
+    e.preventDefault();
+    if (!newMessage.trim() || !chatUser || sendingMessage) return;
+
+    const messageText = newMessage.trim();
+    setNewMessage('');
+    setSendingMessage(true);
+
+    // Optimistic update
+    const tempMessage = {
+      id: Date.now(),
+      sender_id: user.id,
+      receiver_id: chatUser.id,
+      message: messageText,
+      created_at: new Date().toISOString(),
+      sender_first: user.first_name,
+      sender_last: user.last_name,
+      isTemp: true
+    };
+    setMessages(prev => [...prev, tempMessage]);
+
+    try {
+      const res = await axios.post(`${API}/messages/${chatUser.id}`,
+        { message: messageText },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      // Replace temp message with real one
+      setMessages(prev => prev.map(m =>
+        m.isTemp && m.id === tempMessage.id ? res.data : m
+      ));
+    } catch (err) {
+      // Remove temp message on error
+      setMessages(prev => prev.filter(m => m.id !== tempMessage.id));
+      alert('Failed to send message');
+    } finally {
+      setSendingMessage(false);
+    }
+  };
+
   const getConnectionStatus = (userId) => {
-    // Check if already connected
     const isConnected = myConnections.some(c =>
       c.requester_id === userId || c.receiver_id === userId
     );
     if (isConnected) return 'connected';
 
-    // Check if request sent
     const isSent = sentRequests.some(r => r.receiver_id === userId);
     if (isSent) return 'pending';
 
-    // Check if request received
     const isReceived = pendingRequests.some(r => r.requester_id === userId);
     if (isReceived) return 'received';
 
@@ -124,7 +220,6 @@ const Connect = () => {
   };
 
   const getConnectionFromUser = (connection) => {
-    // Get the other user from a connection
     if (connection.requester_id === user?.id) {
       return {
         id: connection.receiver_id,
@@ -156,6 +251,21 @@ const Connect = () => {
 
   const getDeptChipClass = (dept) => `chip chip-dept-${dept?.toLowerCase()}`;
   const getRoleIcon = (role) => ({ faculty: '👨‍🏫', alumni: '🎓', student: '👨‍🎓' }[role] || '👤');
+
+  const formatTime = (dateStr) => {
+    const d = new Date(dateStr);
+    const now = new Date();
+    const diffMs = now - d;
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays < 7) return `${diffDays}d ago`;
+    return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+  };
 
   const filteredUsers = users.filter(u => {
     if (filters.search) {
@@ -215,7 +325,7 @@ const Connect = () => {
 
         {isConnection && (
           <div className="user-card-actions">
-            <button className="btn btn-primary btn-sm">
+            <button className="btn btn-primary btn-sm" onClick={() => openChat(u)}>
               <FiMessageCircle /> Message
             </button>
             {u.linkedin_url && (
@@ -232,30 +342,48 @@ const Connect = () => {
     );
   };
 
-  const PendingRequestCard = ({ request }) => (
-    <div className="user-card card animate-fade-in pending-card">
-      <div className="user-card-header">
-        <div className={`avatar avatar-lg ${request.is_online ? 'online-badge' : ''}`}>
-          {request.first_name?.[0]}{request.last_name?.[0]}
-        </div>
-        <span className="user-role-emoji">{getRoleIcon(request.role)}</span>
+  const PendingRequestCard = ({ request }) => {
+    const isAccepted = acceptedRequests.has(request.id);
+
+    return (
+      <div className={`user-card card animate-fade-in pending-card ${isAccepted ? 'accepted-animation' : ''}`}>
+        {isAccepted ? (
+          // Accepted state
+          <div className="accepted-state">
+            <div className="accepted-icon">
+              <FiUserCheck size={32} />
+            </div>
+            <h4>Connected!</h4>
+            <p>You are now connected with {request.first_name}</p>
+          </div>
+        ) : (
+          // Normal pending state
+          <>
+            <div className="user-card-header">
+              <div className={`avatar avatar-lg ${request.is_online ? 'online-badge' : ''}`}>
+                {request.first_name?.[0]}{request.last_name?.[0]}
+              </div>
+              <span className="user-role-emoji">{getRoleIcon(request.role)}</span>
+            </div>
+            <h4 className="user-card-name">{request.first_name} {request.last_name}</h4>
+            <div className="user-card-tags">
+              <span className={getDeptChipClass(request.department)}>{request.department}</span>
+              <span className="chip chip-outline">{request.role}</span>
+            </div>
+            <p className="user-card-bio pending-text">wants to connect with you</p>
+            <div className="user-card-actions pending-actions">
+              <button className="btn btn-primary btn-sm" onClick={() => respondToRequest(request.id, 'accepted', request.requester_id)}>
+                <FiCheck /> Accept
+              </button>
+              <button className="btn btn-danger btn-sm" onClick={() => respondToRequest(request.id, 'rejected', request.requester_id)}>
+                <FiX /> Decline
+              </button>
+            </div>
+          </>
+        )}
       </div>
-      <h4 className="user-card-name">{request.first_name} {request.last_name}</h4>
-      <div className="user-card-tags">
-        <span className={getDeptChipClass(request.department)}>{request.department}</span>
-        <span className="chip chip-outline">{request.role}</span>
-      </div>
-      <p className="user-card-bio pending-text">wants to connect with you</p>
-      <div className="user-card-actions pending-actions">
-        <button className="btn btn-primary btn-sm" onClick={() => respondToRequest(request.id, 'accepted')}>
-          <FiCheck /> Accept
-        </button>
-        <button className="btn btn-danger btn-sm" onClick={() => respondToRequest(request.id, 'rejected')}>
-          <FiX /> Decline
-        </button>
-      </div>
-    </div>
-  );
+    );
+  };
 
   return (
     <div className="page-wrapper" id="connect-page">
@@ -377,6 +505,69 @@ const Connect = () => {
                 <p>When someone sends you a connection request, it will appear here</p>
               </div>
             )}
+          </div>
+        )}
+
+        {/* Chat Modal */}
+        {chatOpen && chatUser && (
+          <div className="chat-modal-overlay" onClick={closeChat}>
+            <div className="chat-modal" onClick={(e) => e.stopPropagation()}>
+              {/* Chat Header */}
+              <div className="chat-modal-header">
+                <button className="btn btn-ghost btn-icon" onClick={closeChat}>
+                  <FiArrowLeft />
+                </button>
+                <div className={`avatar ${chatUser.is_online ? 'online-badge' : ''}`}>
+                  {chatUser.first_name?.[0]}{chatUser.last_name?.[0]}
+                </div>
+                <div className="chat-modal-user-info">
+                  <h4>{chatUser.first_name} {chatUser.last_name}</h4>
+                  <span className={chatUser.is_online ? 'online' : 'offline'}>
+                    {chatUser.is_online ? 'Online' : 'Offline'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Chat Messages */}
+              <div className="chat-modal-messages">
+                {loadingMessages ? (
+                  <div className="chat-loading">Loading messages...</div>
+                ) : messages.length > 0 ? (
+                  messages.map((msg) => (
+                    <div
+                      key={msg.id}
+                      className={`dm-message ${msg.sender_id === user.id ? 'own' : ''}`}
+                    >
+                      <div className="dm-message-content">
+                        <p>{msg.message}</p>
+                        <span className="dm-time">{formatTime(msg.created_at)}</span>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="chat-empty">
+                    <FiMessageCircle size={48} />
+                    <p>No messages yet. Say hi!</p>
+                  </div>
+                )}
+                <div ref={messagesEndRef} />
+              </div>
+
+              {/* Chat Input */}
+              <form className="chat-modal-input" onSubmit={sendMessage}>
+                <input
+                  type="text"
+                  className="input-field"
+                  placeholder={`Message ${chatUser.first_name}...`}
+                  value={newMessage}
+                  onChange={(e) => setNewMessage(e.target.value)}
+                  autoFocus
+                />
+                <button type="submit" className="btn btn-primary btn-icon" disabled={!newMessage.trim() || sendingMessage}>
+                  <FiSend />
+                </button>
+              </form>
+            </div>
           </div>
         )}
       </div>

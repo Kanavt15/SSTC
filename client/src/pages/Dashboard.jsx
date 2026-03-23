@@ -1,12 +1,18 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { FiBookOpen, FiUsers, FiMessageSquare, FiUpload, FiTrendingUp, FiCpu, FiFileText, FiArrowRight } from 'react-icons/fi';
+import axios from 'axios';
+import { FiBookOpen, FiUsers, FiMessageSquare, FiUpload, FiTrendingUp, FiCpu, FiFileText, FiArrowRight, FiRefreshCw, FiUserCheck, FiBell } from 'react-icons/fi';
 import './Dashboard.css';
 
+const API = 'http://localhost:5000/api';
+
 const Dashboard = () => {
-  const { user } = useAuth();
+  const { user, token } = useAuth();
   const [greeting, setGreeting] = useState('');
+  const [dashboardData, setDashboardData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     const hour = new Date().getHours();
@@ -15,6 +21,31 @@ const Dashboard = () => {
     else setGreeting('Good Evening');
   }, []);
 
+  const fetchDashboardData = useCallback(async (isRefresh = false) => {
+    if (!token) return;
+    if (isRefresh) setRefreshing(true);
+    else setLoading(true);
+
+    try {
+      const res = await axios.get(`${API}/dashboard/stats`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setDashboardData(res.data);
+    } catch (err) {
+      console.error('Failed to fetch dashboard data:', err);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [token]);
+
+  useEffect(() => {
+    fetchDashboardData();
+    // Refresh every 30 seconds
+    const interval = setInterval(() => fetchDashboardData(true), 30000);
+    return () => clearInterval(interval);
+  }, [fetchDashboardData]);
+
   const quickActions = [
     { icon: <FiUpload />, label: 'Upload Notes', path: '/notes', color: '#b70011' },
     { icon: <FiMessageSquare />, label: 'Join Chat', path: '/chat', color: '#005e8d' },
@@ -22,28 +53,23 @@ const Dashboard = () => {
     { icon: <FiCpu />, label: 'AI Study Bot', path: '/chatbot', color: '#92400e' },
   ];
 
-  const stats = [
-    { icon: <FiBookOpen />, label: 'Notes Shared', value: '500+', trend: '+12%' },
-    { icon: <FiUsers />, label: 'Connections', value: '1,200+', trend: '+8%' },
-    { icon: <FiMessageSquare />, label: 'Messages Today', value: '340', trend: '+25%' },
-    { icon: <FiFileText />, label: 'PYQs Available', value: '200+', trend: '+5%' },
-  ];
+  const stats = dashboardData ? [
+    { icon: <FiBookOpen />, label: 'Notes Shared', value: dashboardData.stats.totalNotes, color: '#b70011' },
+    { icon: <FiUserCheck />, label: 'Your Connections', value: dashboardData.userStats.connections, color: '#047857' },
+    { icon: <FiMessageSquare />, label: 'Messages Today', value: dashboardData.stats.messagesToday, color: '#005e8d' },
+    { icon: <FiFileText />, label: 'PYQs Available', value: dashboardData.stats.totalPYQs, color: '#92400e' },
+  ] : [];
 
   const deptChats = [
-    { code: 'AIDS', name: 'AI & Data Science', online: 42, color: '#0369a1', bg: '#e0f2fe' },
-    { code: 'COMPS', name: 'Computer Science', online: 67, color: '#be185d', bg: '#fce7f3' },
-    { code: 'IT', name: 'Information Technology', online: 53, color: '#047857', bg: '#ecfdf5' },
-    { code: 'EXTC', name: 'Electronics & Telecom', online: 31, color: '#92400e', bg: '#fef3c7' },
+    { code: 'GENERAL', name: 'General Chat', color: '#6366f1', bg: '#eef2ff' },
+    { code: 'AIDS', name: 'AI & Data Science', color: '#0369a1', bg: '#e0f2fe' },
+    { code: 'COMPS', name: 'Computer Science', color: '#be185d', bg: '#fce7f3' },
+    { code: 'IT', name: 'Information Technology', color: '#047857', bg: '#ecfdf5' },
+    { code: 'EXTC', name: 'Electronics & Telecom', color: '#92400e', bg: '#fef3c7' },
   ];
 
-  const recentNotes = [
-    { title: 'Data Structures & Algorithms Notes', subject: 'DSA', dept: 'COMPS', year: 'SE', type: 'notes' },
-    { title: 'Machine Learning PYQ 2025', subject: 'ML', dept: 'AIDS', year: 'TE', type: 'pyq' },
-    { title: 'Computer Networks Assignment 3', subject: 'CN', dept: 'IT', year: 'TE', type: 'assignment' },
-    { title: 'Digital Signal Processing Notes', subject: 'DSP', dept: 'EXTC', year: 'SE', type: 'notes' },
-  ];
-
-  const getDeptChipClass = (dept) => `chip chip-dept-${dept.toLowerCase()}`;
+  const getDeptChipClass = (dept) => `chip chip-dept-${dept?.toLowerCase()}`;
+  const getTypeLabel = (type) => ({ notes: '📝', pyq: '📄', assignment: '📋', other: '📁' }[type] || '📁');
 
   return (
     <div className="page-wrapper" id="dashboard-page">
@@ -60,6 +86,21 @@ const Dashboard = () => {
                 <span className="chip chip-outline">{user.year_of_study}</span>
               )}
             </div>
+          </div>
+          <div className="welcome-actions">
+            {dashboardData?.userStats.pendingRequests > 0 && (
+              <Link to="/connect" className="pending-badge">
+                <FiBell />
+                <span>{dashboardData.userStats.pendingRequests} pending requests</span>
+              </Link>
+            )}
+            <button
+              className={`btn btn-ghost btn-sm refresh-btn ${refreshing ? 'spinning' : ''}`}
+              onClick={() => fetchDashboardData(true)}
+              disabled={refreshing}
+            >
+              <FiRefreshCw />
+            </button>
           </div>
           <div className="welcome-art">
             <div className="welcome-circle c1" />
@@ -83,18 +124,21 @@ const Dashboard = () => {
 
         {/* Stats */}
         <div className="dashboard-stats stagger">
-          {stats.map((s, i) => (
-            <div key={i} className="stat-card card animate-fade-in">
-              <div className="stat-card-icon">{s.icon}</div>
-              <div className="stat-card-info">
-                <span className="stat-card-value">{s.value}</span>
-                <span className="stat-card-label">{s.label}</span>
+          {loading ? (
+            Array(4).fill(0).map((_, i) => (
+              <div key={i} className="stat-card card skeleton" style={{ height: 100 }} />
+            ))
+          ) : (
+            stats.map((s, i) => (
+              <div key={i} className="stat-card card animate-fade-in">
+                <div className="stat-card-icon" style={{ color: s.color, background: `${s.color}12` }}>{s.icon}</div>
+                <div className="stat-card-info">
+                  <span className="stat-card-value">{s.value}</span>
+                  <span className="stat-card-label">{s.label}</span>
+                </div>
               </div>
-              <span className="stat-card-trend">
-                <FiTrendingUp /> {s.trend}
-              </span>
-            </div>
-          ))}
+            ))
+          )}
         </div>
 
         {/* Main Content Grid */}
@@ -106,46 +150,78 @@ const Dashboard = () => {
               <Link to="/notes" className="btn btn-ghost btn-sm">View All <FiArrowRight /></Link>
             </div>
             <div className="notes-list">
-              {recentNotes.map((n, i) => (
-                <div key={i} className="note-item">
-                  <div className="note-icon">
-                    <FiFileText />
-                  </div>
-                  <div className="note-info">
-                    <span className="note-title">{n.title}</span>
-                    <div className="note-tags">
-                      <span className={getDeptChipClass(n.dept)}>{n.dept}</span>
-                      <span className="chip chip-outline">{n.year}</span>
-                      <span className="chip chip-outline">{n.type}</span>
+              {loading ? (
+                Array(4).fill(0).map((_, i) => (
+                  <div key={i} className="note-item skeleton" style={{ height: 60 }} />
+                ))
+              ) : dashboardData?.recentNotes?.length > 0 ? (
+                dashboardData.recentNotes.map((n, i) => (
+                  <Link key={i} to="/notes" className="note-item">
+                    <div className="note-icon">
+                      <span>{getTypeLabel(n.note_type)}</span>
                     </div>
-                  </div>
+                    <div className="note-info">
+                      <span className="note-title">{n.title}</span>
+                      <div className="note-tags">
+                        <span className={getDeptChipClass(n.department)}>{n.department}</span>
+                        <span className="chip chip-outline">{n.year}</span>
+                        <span className="chip chip-outline">{n.note_type}</span>
+                      </div>
+                    </div>
+                    <span className="note-downloads">{n.download_count} downloads</span>
+                  </Link>
+                ))
+              ) : (
+                <div className="empty-state">
+                  <FiFileText />
+                  <p>No notes yet. Be the first to upload!</p>
                 </div>
-              ))}
+              )}
             </div>
           </div>
 
           {/* Department Chats */}
           <div className="dash-section card animate-fade-in" id="dept-chats" style={{ animationDelay: '100ms' }}>
             <div className="dash-section-header">
-              <h3>Department Chats</h3>
+              <h3>Chat Channels</h3>
               <Link to="/chat" className="btn btn-ghost btn-sm">Open Chat <FiArrowRight /></Link>
             </div>
             <div className="dept-chat-list">
-              {deptChats.map((d, i) => (
-                <Link key={i} to={`/chat?dept=${d.code}`} className="dept-chat-item">
-                  <div className="dept-chat-badge" style={{ background: d.bg, color: d.color }}>
-                    {d.code}
-                  </div>
-                  <div className="dept-chat-info">
-                    <span className="dept-chat-name">{d.name}</span>
-                    <span className="dept-chat-online">
-                      <span className="online-dot" style={{ background: '#22c55e' }} />
-                      {d.online} online
-                    </span>
-                  </div>
-                  <FiArrowRight className="dept-chat-arrow" />
-                </Link>
-              ))}
+              {deptChats.map((d, i) => {
+                const online = dashboardData?.onlineUsers?.[d.code] || 0;
+                const isAccessible = user?.role === 'faculty' || user?.role === 'alumni' ||
+                  d.code === 'GENERAL' || d.code === user?.department;
+
+                return (
+                  <Link
+                    key={i}
+                    to={isAccessible ? `/chat?dept=${d.code}` : '#'}
+                    className={`dept-chat-item ${!isAccessible ? 'locked' : ''}`}
+                  >
+                    <div className="dept-chat-badge" style={{ background: d.bg, color: d.color }}>
+                      {d.code === 'GENERAL' ? '🌐' : d.code.substring(0, 2)}
+                    </div>
+                    <div className="dept-chat-info">
+                      <span className="dept-chat-name">{d.name}</span>
+                      <span className="dept-chat-online">
+                        {online > 0 && <span className="online-dot" style={{ background: '#22c55e' }} />}
+                        {online > 0 ? `${online} online` : 'No one online'}
+                      </span>
+                    </div>
+                    {isAccessible ? (
+                      <FiArrowRight className="dept-chat-arrow" />
+                    ) : (
+                      <span className="locked-badge">🔒</span>
+                    )}
+                  </Link>
+                );
+              })}
+            </div>
+
+            {/* Total Online */}
+            <div className="total-online">
+              <FiUsers />
+              <span>{dashboardData?.onlineUsers?.total || 0} users online campus-wide</span>
             </div>
           </div>
         </div>
