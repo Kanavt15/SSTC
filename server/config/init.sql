@@ -54,16 +54,19 @@ CREATE TABLE IF NOT EXISTS note_ratings (
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
--- Chat messages table (department-wise)
+-- Chat messages table (department-wise + general channel)
 CREATE TABLE IF NOT EXISTS chat_messages (
   id INT AUTO_INCREMENT PRIMARY KEY,
-  department ENUM('AIDS', 'COMPS', 'IT', 'EXTC') NOT NULL,
+  channel ENUM('GENERAL', 'AIDS', 'COMPS', 'IT', 'EXTC') NOT NULL DEFAULT 'GENERAL',
   user_id INT NOT NULL,
   message TEXT NOT NULL,
   message_type ENUM('text', 'image', 'file') DEFAULT 'text',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
+
+-- Index for faster message retrieval by channel
+CREATE INDEX idx_chat_channel ON chat_messages(channel, created_at DESC);
 
 -- Connections table (student-faculty-alumni connections)
 CREATE TABLE IF NOT EXISTS connections (
